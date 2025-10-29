@@ -1,11 +1,280 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1029.page</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>가상의 채팅 앱 (Single File)</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#6ee7b7; --muted:#9aa4b2; --me:#1f2937; --you:#0b1220;
+      --glass: rgba(255,255,255,0.04);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(180deg,#071026 0%, #071a2a 100%); color:#e6eef6; display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .app{
+      width:100%; max-width:920px; height:720px; background:linear-gradient(180deg,var(--card), #051226); border-radius:14px; box-shadow:0 10px 30px rgba(2,6,23,0.6); overflow:hidden; display:grid; grid-template-columns:320px 1fr;
+    }
+
+    /* Left sidebar */
+    .sidebar{padding:18px; border-right:1px solid rgba(255,255,255,0.03); background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);}
+    .brand{display:flex; gap:12px; align-items:center; margin-bottom:16px}
+    .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#60a5fa);display:flex;align-items:center;justify-content:center;font-weight:700;color:#042124}
+    h1{font-size:16px;margin:0}
+    p.sub{margin:2px 0 0;color:var(--muted);font-size:13px}
+    .conversations{margin-top:18px;display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto;padding-right:6px}
+    .conv{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+    .conv:hover{background:rgba(255,255,255,0.02)}
+    .avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#334155,#0ea5a5);display:flex;align-items:center;justify-content:center;font-weight:700}
+    .conv .meta{flex:1}
+    .conv .meta .title{font-weight:600}
+    .conv .meta .last{color:var(--muted);font-size:13px}
+
+    /* Right area */
+    .right{display:flex;flex-direction:column;height:100%}
+    .header{display:flex;align-items:center;justify-content:space-between;padding:18px;border-bottom:1px solid rgba(255,255,255,0.03)}
+    .header .title{display:flex;gap:12px;align-items:center}
+    .controls{display:flex;gap:10px;align-items:center}
+    button.icon{background:var(--glass);border:0;padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
+
+    .messages{flex:1;padding:20px;overflow:auto;display:flex;flex-direction:column;gap:12px;background-image:linear-gradient(transparent, rgba(255,255,255,0.01));}
+    .day{align-self:center;background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
+    .bubble{max-width:72%;padding:12px 14px;border-radius:12px;display:inline-block;position:relative;word-break:break-word}
+    .msg.me{align-self:flex-end;background:linear-gradient(180deg,#1f2937,#111827); color:#e6eef6;border-bottom-right-radius:4px}
+    .msg.you{align-self:flex-start;background:rgba(255,255,255,0.03); color:#e6eef6;border-bottom-left-radius:4px}
+    .meta-line{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+
+    .input-area{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.03);display:flex;gap:10px;align-items:center;background:linear-gradient(180deg, transparent, rgba(0,0,0,0.06))}
+    .input-area textarea{flex:1;resize:none;padding:10px;border-radius:10px;border:0;background:rgba(255,255,255,0.02);color:inherit;min-height:44px;max-height:120px;font-size:14px}
+    .send{background:linear-gradient(90deg,var(--accent),#60a5fa);border:0;padding:10px 14px;border-radius:10px;color:#042124;font-weight:700;cursor:pointer}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* typing indicator */
+    .typing{display:flex;gap:6px;align-items:center}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);opacity:0.4;animation:blink 1s infinite}
+    .dot:nth-child(2){animation-delay:.15s}
+    .dot:nth-child(3){animation-delay:.3s}
+    @keyframes blink{0%{opacity:.15}50%{opacity:1}100%{opacity:.15}}
+
+    /* responsive */
+    @media (max-width:720px){
+      .app{grid-template-columns:1fr; height:88vh}
+      .sidebar{display:none}
+    }
+  </style>
 </head>
 <body>
-    나의 첫 웹페이지
+  <div class="app" role="application" aria-label="가상의 채팅 앱">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">C</div>
+        <div>
+          <h1>ChatLab</h1>
+          <p class="sub">Single-file demo</p>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="small">대화 목록</div>
+          <div><button class="icon" id="newConvBtn" title="새 대화">＋</button></div>
+        </div>
+        <div class="conversations" id="conversations" tabindex="0" aria-label="대화 목록"></div>
+      </div>
+
+      <div style="position:absolute; bottom:18px; left:18px; right:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="small">저장된 대화: <span id="convCount">0</span></div>
+          <div style="display:flex;gap:8px">
+            <button class="icon" id="clearBtn" title="모두 지우기">🗑</button>
+            <button class="icon" id="exportBtn" title="대화 내보내기">⤓</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="right">
+      <header class="header">
+        <div class="title">
+          <div class="avatar" id="chatAvatar">B</div>
+          <div>
+            <div id="chatTitle" style="font-weight:700">새 대화</div>
+            <div class="small" id="chatSubtitle">나와 가상의 상대</div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="icon" id="themeBtn" title="테마 전환">🌓</button>
+        </div>
+      </header>
+
+      <section class="messages" id="messages" aria-live="polite"></section>
+
+      <div class="input-area">
+        <textarea id="input" placeholder="메시지 입력 (Shift+Enter 줄바꿈)" aria-label="메시지 입력"></textarea>
+        <button class="send" id="sendBtn">전송</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ---- 간단한 single-file 채팅 앱 스크립트 ----
+    const STORAGE_KEY = 'chatlab_conversations_v1';
+    const conversationsEl = document.getElementById('conversations');
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const newConvBtn = document.getElementById('newConvBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const convCountEl = document.getElementById('convCount');
+    const chatTitle = document.getElementById('chatTitle');
+    const chatSubtitle = document.getElementById('chatSubtitle');
+    const chatAvatar = document.getElementById('chatAvatar');
+
+    let store = loadStore();
+    let activeId = null;
+
+    function loadStore(){
+      try{
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {convs:[]}
+      }catch(e){
+        return {convs:[]}
+      }
+    }
+    function saveStore(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); renderConversations(); }
+
+    function uid(){ return 'id_' + Math.random().toString(36).slice(2,9); }
+
+    function createConversation(name){
+      const id = uid();
+      const conv = {id, name: name || '대화 '+(store.convs.length+1), messages: [], createdAt: Date.now()};
+      store.convs.unshift(conv);
+      saveStore();
+      setActive(id);
+    }
+
+    function renderConversations(){
+      conversationsEl.innerHTML = '';
+      store.convs.forEach(conv => {
+        const el = document.createElement('div'); el.className='conv'; el.tabIndex=0;
+        el.dataset.id = conv.id;
+        el.innerHTML = `
+          <div class="avatar">${conv.name.charAt(0) || 'C'}</div>
+          <div class="meta">
+            <div class="title">${escapeHtml(conv.name)}</div>
+            <div class="last">${conv.messages.length? formatTime(conv.messages[conv.messages.length-1].ts): '메시지가 없습니다'}</div>
+          </div>
+        `;
+        el.addEventListener('click', ()=> setActive(conv.id));
+        conversationsEl.appendChild(el);
+      });
+      convCountEl.textContent = store.convs.length;
+    }
+
+    function setActive(id){
+      activeId = id;
+      const conv = store.convs.find(c => c.id === id);
+      if(!conv) return;
+      chatTitle.textContent = conv.name;
+      chatAvatar.textContent = conv.name.charAt(0);
+      chatSubtitle.textContent = conv.messages.length + '개의 메시지';
+      renderMessages(conv.messages);
+      // highlight active
+      [...conversationsEl.children].forEach(ch => ch.classList.toggle('active', ch.dataset.id === id));
+    }
+
+    function renderMessages(messages){
+      messagesEl.innerHTML = '';
+      if(messages.length===0){ messagesEl.innerHTML = '<div class="day">대화가 비어있습니다. 보내보세요!</div>'; messagesEl.scrollTop = messagesEl.scrollHeight; return}
+      let lastDay='';
+      messages.forEach(m =>{
+        const d = new Date(m.ts);
+        const day = d.toLocaleDateString();
+        if(day!==lastDay){ const dayEl = document.createElement('div'); dayEl.className='day'; dayEl.textContent = day; messagesEl.appendChild(dayEl); lastDay=day }
+        const el = document.createElement('div'); el.className = 'bubble msg ' + (m.from==='me' ? 'me':'you');
+        el.innerHTML = `<div>${escapeHtml(m.text)}</div><div class="meta-line">${m.from==='me'? '나': '상대'} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
+        messagesEl.appendChild(el);
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function sendMessage(text, from='me'){
+      if(!activeId) createConversation('대화');
+      const conv = store.convs.find(c=>c.id===activeId);
+      const msg = {id: uid(), text: text.trim(), from, ts: Date.now()};
+      conv.messages.push(msg);
+      saveStore();
+      setActive(activeId);
+    }
+
+    // Fake bot reply: 간단히 입력을 변형해서 답장
+    function fakeReplyFor(text){
+      // 짧은 처리: 질문이면 응답형으로, 아니면 에코
+      if(/[?？]$/.test(text.trim())) return '질문 잘 받았어요! (자동응답)';
+      const words = text.trim().split(/\s+/).slice(0,8).reverse().join(' ');
+      return words ? `Echo: ${words}` : '무언가 보냈네요 :)';
+    }
+
+    // Quick helper: escape
+    function escapeHtml(s){ return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') }
+
+    function formatTime(ts){ return new Date(ts).toLocaleString(); }
+
+    // events
+    sendBtn.addEventListener('click', ()=>{
+      const v = inputEl.value;
+      if(!v.trim()) return; sendMessage(v,'me'); inputEl.value='';
+      // typing indicator
+      showTyping();
+      setTimeout(()=>{
+        hideTyping(); sendMessage(fakeReplyFor(v),'you');
+      }, 700 + Math.random()*1000);
+    });
+
+    inputEl.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
+    });
+
+    newConvBtn.addEventListener('click', ()=>{ const name = prompt('새 대화 이름을 입력하세요','새 대화'); if(name!==null) createConversation(name.trim() || '새 대화'); });
+    clearBtn.addEventListener('click', ()=>{ if(confirm('모든 대화를 삭제할까요?')){ store={convs:[]}; saveStore(); activeId=null; renderMessages([]); }});
+
+    exportBtn.addEventListener('click', ()=>{
+      const data = JSON.stringify(store, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download = 'chatlab_export_'+(new Date()).toISOString().slice(0,19).replaceAll(':','')+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // Typing indicator helpers
+    let typingEl = null;
+    function showTyping(){
+      typingEl = document.createElement('div'); typingEl.className='bubble msg you';
+      typingEl.innerHTML = `<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div class="meta-line">상대 · 지금</div>`;
+      messagesEl.appendChild(typingEl); messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+    function hideTyping(){ if(typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl); typingEl=null }
+
+    // Initialize: if no convs, create a starter
+    if(store.convs.length===0){ createConversation('시작하기'); sendMessage('안녕하세요! 여기는 가상의 채팅입니다. 테스트 메시지를 보내보세요.','you'); }
+    renderConversations(); if(!activeId && store.convs[0]) setActive(store.convs[0].id);
+
+    // small accessibility: focus input on load
+    inputEl.focus();
+
+    // Theme toggle: simple inversion
+    const themeBtn = document.getElementById('themeBtn'); themeBtn.addEventListener('click', ()=>{
+      const r = document.documentElement;
+      if(r.style.filter){ r.style.filter=''; } else { r.style.filter='invert(0.98) hue-rotate(180deg)'; }
+    });
+
+    // Save on unload
+    window.addEventListener('beforeunload', ()=> saveStore());
+
+    // expose store for debugging (in dev console only)
+    window.__chatlab = {store, save: saveStore};
+  </script>
 </body>
 </html>
